@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Stop-Process -Id 24788 -Force -Confirm:$false)",
+      "PowerShell(\"ok\")",
+      "PowerShell(git -C \"D:\\\\DMG\\\\DMG\" remote -v)",
+      "PowerShell(git -C \"D:\\\\DMG\\\\DMG\" log --oneline -5)",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:4173/images/dan.png\" -UseBasicParsing; \"status $\\($r.StatusCode\\) bytes $\\($r.RawContentLength\\)\" } catch { \"erro: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(Get-FileHash \"D:\\\\DMG\\\\DMG\\\\images\\\\dan.png\", \"D:\\\\DMG_Saas\\\\images\\\\dan.png\" -Algorithm MD5 | Select-Object Hash, Path; $bytes = [System.IO.File]::ReadAllBytes\\(\"D:\\\\DMG_Saas\\\\images\\\\dan.png\"\\); \"leitura ok: $\\($bytes.Length\\) bytes; header: $\\([BitConverter]::ToString\\($bytes[0..7]\\)\\)\")",
+      "PowerShell(1..3 | ForEach-Object { try { $r = Invoke-WebRequest -Uri \"http://localhost:4173/images/dan.png?t=$_\" -UseBasicParsing; \"tentativa ${_}: status $\\($r.StatusCode\\), $\\($r.Content.Length\\) bytes\" } catch { \"tentativa ${_}: erro - $\\($_.Exception.Message\\)\" } })",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:4173/images/dan.png\" -UseBasicParsing; \"status $\\($r.StatusCode\\), $\\($r.Content.Length\\) bytes\" } catch { \"erro: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(Remove-Item \"D:\\\\DMG_Saas\\\\js\\\\dashboard.js\" -Confirm:$false)",
+      "PowerShell(\"removido\")",
+      "PowerShell($root = \"C:\\\\Users\\\\migue\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--DMG-Saas\\\\d30700b4-76e3-4cd6-8b4a-2601db93be3d\\\\scratchpad\\\\gpt-dash\\\\damage-group-dashboard\"; Get-ChildItem $root | Select-Object Name; Get-ChildItem $root -Recurse -File | Where-Object { $_.FullName -notmatch 'node_modules' } | Select-Object -ExpandProperty FullName)",
+      "PowerShell($b = \"C:\\\\Users\\\\migue\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--DMG-Saas\\\\d30700b4-76e3-4cd6-8b4a-2601db93be3d\\\\scratchpad\\\\gpt-dash\\\\damage-group-dashboard\\\\.next\\\\static\"; Get-Item \"$b\\\\chunks\\\\app\\\\page.js\", \"$b\\\\css\\\\app\\\\layout.css\" | Select-Object Name, Length)",
+      "PowerShell($f = \"C:\\\\Users\\\\migue\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--DMG-Saas\\\\d30700b4-76e3-4cd6-8b4a-2601db93be3d\\\\scratchpad\\\\gpt-dash\\\\damage-group-dashboard\\\\.next\\\\static\\\\chunks\\\\app\\\\page.js\"; $lines = [System.IO.File]::ReadAllLines\\($f\\); \"linha 2463: $\\($lines[2462].Length\\) chars\"; \"linha 5000: $\\($lines[4999].Length\\) chars\"; $out = \"C:\\\\Users\\\\migue\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--DMG-Saas\\\\d30700b4-76e3-4cd6-8b4a-2601db93be3d\\\\scratchpad\\\\page-module.txt\"; $lines[4999] | Out-File $out -Encoding utf8; \"salvo\")",
+      "PowerShell(node \"C:\\\\Users\\\\migue\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--DMG-Saas\\\\d30700b4-76e3-4cd6-8b4a-2601db93be3d\\\\scratchpad\\\\extract-src.js\")"
+    ]
+  }
+}
