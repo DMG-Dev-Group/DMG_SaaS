@@ -58,10 +58,45 @@ function removerTelaLogin() {
   if (overlay) overlay.remove();
 }
 
+/* ── Avatar do usuário logado ──
+   Antes era um "M" fixo no HTML. Agora sai do próprio usuário do
+   Firebase Auth: usa o displayName se existir, senão a parte do email
+   antes do "@". Clicar no avatar faz logout. */
+
+function nomeDoUsuario(user) {
+  if (user.displayName?.trim()) return user.displayName.trim();
+  const local = (user.email || "").split("@")[0];
+  if (!local) return "Usuário";
+  // "miguel.silva" / "miguel_silva" / "miguel-silva" → "Miguel Silva"
+  return local
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((parte) => parte[0].toUpperCase() + parte.slice(1))
+    .join(" ");
+}
+
+function iniciaisDoUsuario(nome) {
+  const partes = nome.split(/\s+/).filter(Boolean);
+  if (partes.length >= 2) return (partes[0][0] + partes[1][0]).toUpperCase();
+  return (partes[0]?.[0] || "?").toUpperCase();
+}
+
+function atualizarAvatar(user) {
+  const el = $("#user-avatar");
+  if (!el) return;
+  const nome = nomeDoUsuario(user);
+  el.textContent = iniciaisDoUsuario(nome);
+  el.title = `${nome} — ${user.email || ""} (clique para sair)`;
+  el.onclick = () => {
+    if (confirm(`Sair da conta de ${nome}?`)) signOut(auth);
+  };
+}
+
 onAuthStateChanged(auth, (user) => {
   const dash = document.querySelector(".sidebar")?.closest("body");
   if (user) {
     removerTelaLogin();
+    atualizarAvatar(user);
     document.body.classList.remove("logueando");
     if (!jaIniciou) {
       jaIniciou = true;

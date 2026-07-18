@@ -1812,3 +1812,110 @@ tbody tr:hover .abrir-seta{ opacity: 1; transform: translateX(3px); }
   background: var(--primary);
   box-shadow: 0 0 8px var(--primary);
 }
+
+/* ══════════ BLOCO DE NOTAS + TO-DO (detalhes do projeto) ══════════ */
+
+.notas-status{
+  font-family: var(--mono);
+  font-size: 11px;
+  color: rgba(255,255,255,.42);
+  white-space: nowrap;
+}
+
+.notas-txt{
+  width: 100%;
+  resize: vertical;
+  min-height: 240px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.28);
+  color: #eaeaea;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.65;
+  transition: border-color .2s;
+}
+.notas-txt::placeholder{ color: rgba(255,255,255,.26); }
+.notas-txt:focus{ outline: none; border-color: rgba(192,24,26,.55); }
+
+.todo-form{
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.todo-form input{
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.28);
+  color: #eaeaea;
+  font-size: 13px;
+  transition: border-color .2s;
+}
+.todo-form input::placeholder{ color: rgba(255,255,255,.26); }
+.todo-form input:focus{ outline: none; border-color: rgba(192,24,26,.55); }
+
+.todo-list{
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.todo-item{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 4px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+}
+.todo-item:last-child{ border-bottom: none; }
+
+.todo-item label{
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.todo-item input[type="checkbox"]{
+  flex-shrink: 0;
+  width: 16px; height: 16px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.todo-item.feito span{
+  color: rgba(255,255,255,.36);
+  text-decoration: line-through;
+}
+.todo-item .icon-mini{ opacity: 0; transition: opacity .15s; }
+.todo-item:hover .icon-mini{ opacity: 1; }
+
+/* Vínculos clicáveis entre coleções (cliente ↔ projeto ↔ lançamento) */
+.kv-link{
+  color: var(--primary);
+  cursor: pointer;
+}
+.kv-link:hover{ text-decoration: underline; }
+
+.c-projetos{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+.c-projetos .info-pill{ cursor: pointer; }
+.c-projetos .info-pill:hover{
+  border-color: rgba(192,24,26,.55);
+  color: #fff;
+}
+
+td .p-type.td-click{ cursor: pointer; }
+td .p-type.td-click:hover{ color: var(--primary); }

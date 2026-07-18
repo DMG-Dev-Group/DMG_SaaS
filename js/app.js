@@ -8,6 +8,22 @@ const $$ = (s, c = document) => [...c.querySelectorAll(s)];
 
 const BRL = (v) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+/* Escapa texto livre do usuário (notas, tarefas) antes de jogar no innerHTML. */
+const esc = (s) =>
+  String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+/* ── Relações entre coleções ──
+   Os vínculos são guardados por id (clienteId no projeto, projetoId no
+   lançamento). Registros antigos, criados quando o vínculo era feito pelo
+   nome do projeto, continuam funcionando pelo fallback abaixo. */
+
+const clienteDoProjeto = (p) => Store.get("clientes").find((c) => c.id === p.clienteId) || null;
+
+const projetosDoCliente = (c) => Store.get("projetos").filter((p) => p.clienteId === c.id);
+
+const lancamentosDoProjeto = (p) =>
+  Store.get("receitas").filter((l) => (l.projetoId ? l.projetoId === p.id : l.projeto && l.projeto === p.nome));
+
 const STATUS = {
   producao: { label: "produção", cls: "prod" },
   dev: { label: "desenvolvimento", cls: "dev" },
@@ -364,10 +380,15 @@ RENDER.projetos = () => {
 
 function formProjeto(p = {}) {
   const resp = { Daniel: "Daniel", Miguel: "Miguel", Guilherme: "Guilherme", Equipe: "Equipe" };
+  const clientes = Object.fromEntries([
+    ["", "— sem cliente —"],
+    ...Store.get("clientes").map((c) => [c.id, c.nome]),
+  ]);
   abrirModal(
     p.id ? "Editar projeto" : "Novo projeto",
     campo("Nome", `<input name="nome" required value="${p.nome || ""}">`) +
       campo("Tipo", `<input name="tipo" placeholder="e-commerce, site, app..." value="${p.tipo || ""}">`) +
+      campo("Cliente", `<select name="clienteId">${opts(clientes, p.clienteId)}</select>`) +
       campo("Responsável", `<select name="resp">${opts(resp, p.resp)}</select>`) +
       campo("Status", `<select name="status">${opts(STATUS, p.status)}</select>`) +
       campo("Progresso (%)", `<input name="progresso" type="number" min="0" max="100" value="${p.progresso ?? 0}">`) +
@@ -512,16 +533,24 @@ RENDER.projeto = () => {
   const p = Store.get("projetos").find((x) => x.id === projetoAtualId);
   if (!p) return irPara("projetos");
 
+  // Enquanto o usuário digita no bloco de notas não redesenhamos: o Store
+  // dispara onChange a cada gravação e o innerHTML abaixo mataria o foco e o
+  // cursor no meio da frase. (O campo de nova tarefa não bloqueia o render —
+  // ele é curto e o foco é restaurado logo abaixo.)
+  if (document.activeElement?.id === "pd-notas-txt") return;
+  const focoNaTarefa = document.activeElement?.closest("#pd-todo-form");
+
   $("#page-label").textContent = "// projeto";
   $("#page-title").innerHTML = p.nome + '<span class="cursor">_</span>';
 
   const st = STATUS[p.status] || STATUS.plan;
-  const lanc = Store.get("receitas")
-    .filter((l) => l.projeto === p.nome)
-    .sort((a, b) => b.data.localeCompare(a.data));
+  const cliente = clienteDoProjeto(p);
+  const lanc = lancamentosDoProjeto(p).slice().sort((a, b) => b.data.localeCompare(a.data));
   const faturado = lanc.filter((l) => l.tipo === "entrada").reduce((s, l) => s + Number(l.valor), 0);
   const gastos = lanc.filter((l) => l.tipo === "saida").reduce((s, l) => s + Number(l.valor), 0);
   const stack = (p.stack || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const todos = Array.isArray(p.todos) ? p.todos : [];
+  const feitas = todos.filter((t) => t.feito).length;
 
   const linkOut = (url, rotulo) =>
     url
@@ -558,6 +587,11 @@ RENDER.projeto = () => {
       <div class="panel">
         <div class="panel-title"><h3>Ficha técnica</h3></div>
         <div class="kv-list">
+          <div class="kv"><span>Cliente</span>${
+            cliente
+              ? `<b class="kv-link" data-abrir-cliente="${cliente.id}">${esc(cliente.nome)} →</b>`
+              : `<span class="kv-vazio">não informado — edite o projeto para vincular um cliente</span>`
+          }</div>
           <div class="kv"><span>Repositório</span>${linkOut(p.repo, "o repositório")}</div>
           <div class="kv"><span>Produção</span>${linkOut(p.url, "a URL")}</div>
           <div class="kv"><span>Valor contratado</span><b>${p.valor ? BRL(Number(p.valor)) : "—"}</b></div>
@@ -565,6 +599,42 @@ RENDER.projeto = () => {
           <div class="kv"><span>Gastos</span><b class="bad-txt">${BRL(gastos)}</b></div>
           <div class="kv"><span>Resultado</span><b>${BRL(faturado - gastos)}</b></div>
         </div>
+      </div>
+    </div>
+
+    <div class="grid-2" id="pd-notas">
+      <div class="panel">
+        <div class="panel-title">
+          <div><h3>Bloco de notas</h3><span class="sub">rascunho livre — salva sozinho</span></div>
+          <span class="notas-status" id="pd-notas-status"></span>
+        </div>
+        <textarea id="pd-notas-txt" class="notas-txt" rows="12"
+          placeholder="Senhas de homologação, combinados com o cliente, pendências, links soltos...">${esc(p.notas || "")}</textarea>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          <div><h3>To-do</h3><span class="sub">${feitas}/${todos.length} concluídas</span></div>
+        </div>
+        <form id="pd-todo-form" class="todo-form">
+          <input name="texto" placeholder="nova tarefa..." autocomplete="off" required>
+          <button type="submit" class="btn-sm">+ add</button>
+        </form>
+        ${
+          todos.length
+            ? `<ul class="todo-list">${todos
+                .map(
+                  (t, i) => `<li class="todo-item ${t.feito ? "feito" : ""}">
+                    <label>
+                      <input type="checkbox" data-todo-toggle="${i}" ${t.feito ? "checked" : ""}>
+                      <span>${esc(t.texto)}</span>
+                    </label>
+                    <button class="icon-mini" data-todo-del="${i}" title="Remover">✕</button>
+                  </li>`
+                )
+                .join("")}</ul>`
+            : `<p class="empty">Nenhuma tarefa — comece adicionando a próxima coisa a fazer.</p>`
+        }
       </div>
     </div>
 
@@ -593,10 +663,86 @@ RENDER.projeto = () => {
       }
     </div>`;
 
+  // Adicionar/marcar uma tarefa re-renderiza a view inteira; devolve o foco
+  // pro campo de nova tarefa pra dar pra cadastrar várias em sequência.
+  if (focoNaTarefa) $("#pd-todo-form input[name='texto']")?.focus();
+
   if (p.repo) carregarRepo(p);
 };
 
+/* ── Notas e to-do do projeto ──
+   Ambos vivem como campos do próprio documento do projeto no Firestore
+   (`notas`: string, `todos`: array), então não exigem coleção nova nem
+   mudança nas regras de segurança. */
+
+const projetoAtual = () => Store.get("projetos").find((x) => x.id === projetoAtualId);
+
+// As notas salvam sozinhas ~800ms depois da última tecla, pra não gerar
+// uma escrita no Firestore por caractere digitado.
+let notasTimer = null;
+
+$("#pd-conteudo").addEventListener("input", (e) => {
+  if (e.target.id !== "pd-notas-txt") return;
+  const texto = e.target.value;
+  const status = $("#pd-notas-status");
+  if (status) status.textContent = "digitando…";
+  clearTimeout(notasTimer);
+  notasTimer = setTimeout(async () => {
+    if (!projetoAtualId) return;
+    await Store.update("projetos", projetoAtualId, { notas: texto });
+    const s = $("#pd-notas-status");
+    if (s) {
+      s.textContent = "salvo ✓";
+      setTimeout(() => s.textContent === "salvo ✓" && (s.textContent = ""), 2000);
+    }
+  }, 800);
+});
+
+// Sai do campo de notas → grava na hora, sem esperar o debounce.
+$("#pd-conteudo").addEventListener(
+  "blur",
+  (e) => {
+    if (e.target.id !== "pd-notas-txt" || !projetoAtualId) return;
+    clearTimeout(notasTimer);
+    Store.update("projetos", projetoAtualId, { notas: e.target.value });
+  },
+  true
+);
+
+$("#pd-conteudo").addEventListener("submit", (e) => {
+  if (e.target.id !== "pd-todo-form") return;
+  e.preventDefault();
+  const input = e.target.querySelector("input[name='texto']");
+  const texto = input.value.trim();
+  const p = projetoAtual();
+  if (!texto || !p) return;
+  const todos = [...(Array.isArray(p.todos) ? p.todos : []), { texto, feito: false, criadoEm: Date.now() }];
+  input.value = "";
+  Store.update("projetos", p.id, { todos });
+});
+
+$("#pd-conteudo").addEventListener("change", (e) => {
+  const chk = e.target.closest("[data-todo-toggle]");
+  if (!chk) return;
+  const p = projetoAtual();
+  if (!p || !Array.isArray(p.todos)) return;
+  const i = Number(chk.dataset.todoToggle);
+  const todos = p.todos.map((t, idx) => (idx === i ? { ...t, feito: chk.checked } : t));
+  Store.update("projetos", p.id, { todos });
+});
+
 $("#pd-conteudo").addEventListener("click", (e) => {
+  const del = e.target.closest("[data-todo-del]");
+  if (del) {
+    const p = projetoAtual();
+    if (!p || !Array.isArray(p.todos)) return;
+    const i = Number(del.dataset.todoDel);
+    return Store.update("projetos", p.id, { todos: p.todos.filter((_, idx) => idx !== i) });
+  }
+
+  const cli = e.target.closest("[data-abrir-cliente]");
+  if (cli) return irPara("clientes");
+
   if (e.target.closest("#pd-voltar")) return irPara("projetos");
   if (e.target.closest("#pd-editar")) return formProjeto(Store.get("projetos").find((x) => x.id === projetoAtualId));
   if (e.target.closest("#pd-excluir")) {
@@ -616,15 +762,25 @@ RENDER.clientes = () => {
   $("#grid-clientes").innerHTML = lista.length
     ? lista
         .map(
-          (c) => `<div class="cliente-card">
-            <div class="t-avatar">${c.nome[0].toUpperCase()}</div>
+          (c) => {
+            const projs = projetosDoCliente(c);
+            return `<div class="cliente-card">
+            <div class="t-avatar">${esc(c.nome[0].toUpperCase())}</div>
             <div class="c-info">
-              <b>${c.nome}</b>
-              <span>${c.contato || "sem contato"}</span>
-              <span class="c-desde">cliente desde ${c.desde || "—"}</span>
+              <b>${esc(c.nome)}</b>
+              <span>${esc(c.contato || "sem contato")}</span>
+              <span class="c-desde">cliente desde ${esc(c.desde || "—")}</span>
+              ${
+                projs.length
+                  ? `<div class="c-projetos">${projs
+                      .map((p) => `<span class="info-pill td-click" data-abrir="${p.id}">${esc(p.nome)} →</span>`)
+                      .join("")}</div>`
+                  : `<span class="c-desde">nenhum projeto vinculado</span>`
+              }
             </div>
             <button class="icon-mini" data-excluir-cliente="${c.id}" title="Remover">✕</button>
-          </div>`
+          </div>`;
+          }
         )
         .join("")
     : `<p class="empty">Nenhum cliente cadastrado.</p>`;
@@ -645,6 +801,8 @@ $("#add-cliente").addEventListener("click", () =>
 );
 
 $("#grid-clientes").addEventListener("click", (e) => {
+  const ab = e.target.closest("[data-abrir]");
+  if (ab) return abrirProjeto(ab.dataset.abrir);
   const btn = e.target.closest("[data-excluir-cliente]");
   if (!btn) return;
   const c = Store.get("clientes").find((x) => x.id === btn.dataset.excluirCliente);
@@ -673,28 +831,40 @@ RENDER.financeiro = () => {
     .sort((a, b) => b.data.localeCompare(a.data))
     .slice(0, 25)
     .map(
-      (l) => `<tr>
-        <td><span class="p-name">${l.desc}</span><span class="p-type">${l.projeto || "—"}</span></td>
+      (l) => {
+        // Prefere o nome atual do projeto: se ele foi renomeado depois do
+        // lançamento, o `l.projeto` gravado na hora fica desatualizado.
+        const proj = l.projetoId ? Store.get("projetos").find((p) => p.id === l.projetoId) : null;
+        return `<tr>
+        <td><span class="p-name">${esc(l.desc)}</span>${
+          proj
+            ? `<span class="p-type td-click" data-abrir="${proj.id}">${esc(proj.nome)} →</span>`
+            : `<span class="p-type">${esc(l.projeto || "—")}</span>`
+        }</td>
         <td>${new Date(l.data + "T12:00").toLocaleDateString("pt-BR")}</td>
         <td><span class="status ${l.tipo === "entrada" ? "prod" : "dev"}">${l.tipo}</span></td>
         <td style="color:${l.tipo === "entrada" ? "#2ecc71" : "var(--red)"};font-family:var(--mono)">${l.tipo === "entrada" ? "+" : "−"} ${BRL(Number(l.valor))}</td>
         <td class="td-acoes"><button class="icon-mini" data-excluir-fin="${l.id}" title="Excluir">✕</button></td>
-      </tr>`
+      </tr>`;
+      }
     )
     .join("");
 };
 
 $("#add-fin").addEventListener("click", () => {
-  const projs = Object.fromEntries([["—", "—"], ...Store.get("projetos").map((p) => [p.nome, p.nome])]);
+  const projs = Object.fromEntries([["", "— sem projeto —"], ...Store.get("projetos").map((p) => [p.id, p.nome])]);
   abrirModal(
     "Novo lançamento",
     campo("Descrição", `<input name="desc" required>`) +
       campo("Valor (R$)", `<input name="valor" type="number" min="0.01" step="0.01" required>`) +
       campo("Tipo", `<select name="tipo"><option value="entrada">Entrada</option><option value="saida">Saída</option></select>`) +
-      campo("Projeto", `<select name="projeto">${opts(projs)}</select>`) +
+      campo("Projeto", `<select name="projetoId">${opts(projs)}</select>`) +
       campo("Data", `<input name="data" type="date" value="${Store.isoDay(new Date())}">`),
     (d) => {
       d.valor = Number(d.valor);
+      // Guarda também o nome do projeto: deixa a listagem do extrato legível
+      // sem precisar cruzar as coleções a cada render.
+      d.projeto = Store.get("projetos").find((p) => p.id === d.projetoId)?.nome || "";
       Store.add("receitas", d);
       Store.log(`<b>Financeiro</b> — ${d.tipo} de ${BRL(d.valor)}: ${d.desc}`, "fin");
       RENDER.financeiro();
@@ -703,6 +873,8 @@ $("#add-fin").addEventListener("click", () => {
 });
 
 $("#tbl-fin").addEventListener("click", (e) => {
+  const ab = e.target.closest("[data-abrir]");
+  if (ab) return abrirProjeto(ab.dataset.abrir);
   const btn = e.target.closest("[data-excluir-fin]");
   if (!btn) return;
   if (confirm("Excluir este lançamento?")) {
