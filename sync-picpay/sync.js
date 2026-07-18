@@ -11,7 +11,7 @@
    ============================================================ */
 
 const admin = require("./firebaseAdmin");
-const { fetchTransactions, triggerItemUpdate } = require("./pluggyClient");
+const { fetchTransactions, fetchAccounts, triggerItemUpdate } = require("./pluggyClient");
 
 const db = admin.firestore();
 const SYNC_STATE_DOC = "syncState/picpay";
@@ -50,8 +50,34 @@ async function sincronizarPicPay() {
 
   await triggerItemUpdate(itemId);
 
+  // O itemId identifica a CONEXÃO, não a conta em si — a API de transações
+  // quer o accountId. Um item pode ter mais de uma account (ex: conta +
+  // cartão), então buscamos transações de todas.
+  const accounts = await fetchAccounts(itemId);
+  if (accounts.length === 0) {
+    console.log("[sync-picpay] nenhuma account encontrada para esse item ainda (tente de novo em instantes).");
+    return { novas: 0 };
+  }
+
   const lastSyncDate = await getLastSyncDate();
-  const transacoes = await fetchTransactions(itemId, lastSyncDate);
+
+  // Janela de sobreposição: recua 3 dias do último sync na hora de buscar.
+  // Evita perder transações com data igual/próxima à última sincronizada
+  // (filtros de data podem ser exclusivos, e transações podem ser lançadas
+  // retroativamente pelo banco). Não duplica nada: o docId determinístico
+  // (picpay_<id>) faz regravações virarem merge inofensivo.
+  let dateFrom = null;
+  if (lastSyncDate) {
+    const d = new Date(`${lastSyncDate}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - 3);
+    dateFrom = d.toISOString().slice(0, 10);
+  }
+
+  const transacoes = [];
+  for (const account of accounts) {
+    const txs = await fetchTransactions(account.id, dateFrom);
+    transacoes.push(...txs);
+  }
 
   if (transacoes.length === 0) {
     console.log("[sync-picpay] nenhuma transação nova.");
