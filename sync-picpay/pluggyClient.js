@@ -13,6 +13,20 @@ const PLUGGY_BASE_URL = "https://api.pluggy.ai";
 let cachedApiKey = null;
 let cachedApiKeyExpiresAt = 0;
 
+/**
+ * Lança um erro incluindo o corpo da resposta da Pluggy — sem isso, só
+ * vemos o código HTTP e ficamos adivinhando o motivo real.
+ */
+async function erroComCorpo(resp, contexto) {
+  let corpo = "";
+  try {
+    corpo = await resp.text();
+  } catch {
+    corpo = "(não foi possível ler o corpo da resposta)";
+  }
+  return new Error(`${contexto} (${resp.status}): ${corpo}`);
+}
+
 async function getApiKey() {
   const now = Date.now();
   if (cachedApiKey && now < cachedApiKeyExpiresAt) return cachedApiKey;
@@ -25,7 +39,7 @@ async function getApiKey() {
       clientSecret: process.env.PLUGGY_CLIENT_SECRET,
     }),
   });
-  if (!resp.ok) throw new Error(`Falha na autenticação Pluggy (${resp.status}).`);
+  if (!resp.ok) throw await erroComCorpo(resp, "Falha na autenticação Pluggy");
 
   const data = await resp.json();
   cachedApiKey = data.apiKey;
@@ -33,40 +47,72 @@ async function getApiKey() {
   return cachedApiKey;
 }
 
-/** Pede pra Pluggy buscar dados frescos na instituição antes de ler. */
+/**
+ * Pede pra Pluggy buscar dados frescos na instituição antes de ler.
+ * Obs: itens vindos do MeuPluggy não podem ser atualizados por aqui —
+ * quem sincroniza com o banco é o próprio Meu Pluggy (diariamente).
+ * Nesses casos a API responde 400 "MeuPluggy item cant be updated",
+ * o que é esperado e ignorado em silêncio.
+ */
 async function triggerItemUpdate(itemId) {
   const apiKey = await getApiKey();
-  await fetch(`${PLUGGY_BASE_URL}/items/${itemId}`, {
+  const resp = await fetch(`${PLUGGY_BASE_URL}/items/${itemId}`, {
     method: "PATCH",
     headers: { "X-API-KEY": apiKey, "Content-Type": "application/json" },
     body: JSON.stringify({}),
   });
+  if (!resp.ok) {
+    const corpo = await resp.text().catch(() => "");
+    if (!corpo.includes("MeuPluggy item cant be updated")) {
+      console.warn("[pluggyClient] aviso ao atualizar item:", resp.status, corpo);
+    }
+  }
 }
 
-/** Busca transações do item a partir de uma data (YYYY-MM-DD), com paginação. */
-async function fetchTransactions(itemId, fromDateISO) {
+/**
+ * Lista as accounts (contas) dentro de um item (conexão). Um item pode ter
+ * mais de uma account — o PicPay normalmente tem uma do tipo BANK/PAYMENT.
+ * É o accountId daqui que a API de transações espera, NUNCA o itemId.
+ */
+async function fetchAccounts(itemId) {
   const apiKey = await getApiKey();
-  let page = 1;
+
+  const url = new URL(`${PLUGGY_BASE_URL}/accounts`);
+  url.searchParams.set("itemId", itemId);
+
+  const resp = await fetch(url, { headers: { "X-API-KEY": apiKey } });
+  if (!resp.ok) throw await erroComCorpo(resp, "Falha ao buscar accounts do item");
+
+  const data = await resp.json();
+  return data.results || [];
+}
+
+/**
+ * Busca transações de uma account específica a partir de uma data
+ * (YYYY-MM-DD), com paginação por cursor (GET /v2/transactions).
+ */
+async function fetchTransactions(accountId, fromDateISO) {
+  const apiKey = await getApiKey();
   const all = [];
 
-  while (true) {
-    const url = new URL(`${PLUGGY_BASE_URL}/transactions`);
-    url.searchParams.set("accountId", itemId);
-    if (fromDateISO) url.searchParams.set("from", fromDateISO);
-    url.searchParams.set("pageSize", "500");
-    url.searchParams.set("page", String(page));
+  const primeiraUrl = new URL(`${PLUGGY_BASE_URL}/v2/transactions`);
+  primeiraUrl.searchParams.set("accountId", accountId);
+  if (fromDateISO) primeiraUrl.searchParams.set("dateFrom", fromDateISO);
+  // Obs: /v2/transactions NÃO aceita pageSize — as páginas são fixas em 500
+  // e mandar o parâmetro causa 400 ("property pageSize should not exist").
 
-    const resp = await fetch(url, { headers: { "X-API-KEY": apiKey } });
-    if (!resp.ok) throw new Error(`Falha ao buscar transações (${resp.status}).`);
+  let nextUrl = primeiraUrl.toString();
+
+  while (nextUrl) {
+    const resp = await fetch(nextUrl, { headers: { "X-API-KEY": apiKey } });
+    if (!resp.ok) throw await erroComCorpo(resp, "Falha ao buscar transações");
 
     const data = await resp.json();
     all.push(...(data.results || []));
-
-    if (!data.results || data.results.length < 500) break;
-    page += 1;
+    nextUrl = data.next || null;
   }
 
   return all;
 }
 
-module.exports = { fetchTransactions, triggerItemUpdate };
+module.exports = { fetchTransactions, fetchAccounts, triggerItemUpdate };
