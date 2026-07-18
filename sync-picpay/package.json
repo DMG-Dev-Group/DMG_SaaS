@@ -1,0 +1,16 @@
+{
+  "name": "dmg-picpay-sync",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Serviço isolado que sincroniza o extrato do PicPay (via Meu Pluggy) com a coleção 'receitas' do Firestore usada pelo dashboard DMG.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "sync:once": "node syncOnce.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "firebase-admin": "^12.1.0",
+    "node-cron": "^3.0.3"
+  }
+}
