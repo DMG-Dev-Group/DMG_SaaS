@@ -620,10 +620,9 @@
               <span class="sub">backup e limpeza</span>
             </div>
           </div>
-          <p class="config-desc">Os dados ficam salvos localmente neste navegador (localStorage). Faça backup antes de limpar.</p>
+          <p class="config-desc">Os dados ficam salvos no Firestore, compartilhados em tempo real com o time. Backup e reset agora são feitos pelo Console do Firebase.</p>
           <div class="config-actions">
-            <button class="btn-sm" id="btn-export">⬇ exportar backup (.json)</button>
-            <button class="btn-sm danger" id="btn-reset">✕ limpar todos os dados</button>
+            <button class="btn-sm danger" id="btn-logout">⎋ sair da conta</button>
           </div>
         </div>
       </section>
@@ -642,7 +641,9 @@
     </div>
   </div>
 
-  <script src="js/store.js"></script>
-  <script src="js/app.js"></script>
+  <script type="module" src="js/firebase-init.js"></script>
+  <script type="module" src="js/auth.js"></script>
+  <script type="module" src="js/store.js"></script>
+  <script src="js/app.js" defer></script>
 </body>
 </html>

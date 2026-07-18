@@ -424,6 +424,90 @@ function abrirProjeto(id) {
   irPara("projeto");
 }
 
+/* ── Integração com GitHub (painel "Repositório" na aba do projeto) ── */
+
+const repoCache = {}; // evita refazer a chamada toda vez que a view renderiza
+
+function parseGithubUrl(url) {
+  if (!url) return null;
+  const m = url.match(/github\.com\/([^/]+)\/([^/#?]+)/i);
+  if (!m) return null;
+  return { owner: m[1], repo: m[2].replace(/\.git$/, "") };
+}
+
+async function carregarRepo(p) {
+  const box = $("#pd-repo-conteudo");
+  if (!box) return; // usuário já navegou pra outra view
+  const parsed = parseGithubUrl(p.repo);
+  if (!parsed) {
+    box.innerHTML = `<p class="empty">Repositório informado não parece uma URL do GitHub válida.</p>`;
+    return;
+  }
+
+  const cacheKey = `${parsed.owner}/${parsed.repo}`;
+  if (repoCache[cacheKey]) return desenharRepo(box, p, repoCache[cacheKey]);
+
+  try {
+    const [rRepo, rCommits] = await Promise.all([
+      fetch(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}`),
+      fetch(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}/commits?per_page=1`),
+    ]);
+
+    if (rRepo.status === 404) {
+      box.innerHTML = `<p class="repo-erro">Repositório não encontrado — confira a URL, ou se ele é privado (veja nota abaixo).</p>`;
+      return;
+    }
+    if (rRepo.status === 403) {
+      box.innerHTML = `<p class="repo-erro">GitHub bloqueou a consulta (limite de requisições sem autenticação, ou repositório privado). Repos privados exigem um token — peça pra eu configurar isso se for o caso.</p>`;
+      return;
+    }
+    if (!rRepo.ok) {
+      box.innerHTML = `<p class="repo-erro">Não consegui consultar o GitHub agora (${rRepo.status}).</p>`;
+      return;
+    }
+
+    const repoInfo = await rRepo.json();
+    const commits = rCommits.ok ? await rCommits.json() : [];
+    const dados = { repoInfo, ultimoCommit: commits[0] || null };
+    repoCache[cacheKey] = dados;
+    desenharRepo(box, p, dados);
+  } catch (err) {
+    box.innerHTML = `<p class="repo-erro">Erro de conexão ao consultar o GitHub.</p>`;
+    console.error("[repo]", err);
+  }
+}
+
+function desenharRepo(box, p, { repoInfo, ultimoCommit }) {
+  const atualizado = new Date(repoInfo.pushed_at).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+
+  const commitHtml = ultimoCommit
+    ? `<div class="repo-commit">
+        <img class="avatar" src="${ultimoCommit.author?.avatar_url || "images/logo.svg"}" alt="">
+        <div>
+          <div class="repo-commit-msg">${(ultimoCommit.commit.message || "").split("\n")[0]}</div>
+          <div class="repo-commit-meta">${ultimoCommit.commit.author.name} · ${new Date(ultimoCommit.commit.author.date).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })} · <a href="${ultimoCommit.html_url}" target="_blank" rel="noopener">${ultimoCommit.sha.slice(0, 7)}</a></div>
+        </div>
+      </div>`
+    : "";
+
+  box.innerHTML = `
+    <div class="repo-card">
+      <div class="repo-topo">
+        <span class="repo-nome">${repoInfo.full_name}</span>
+        <a class="link-out" href="${repoInfo.html_url}" target="_blank" rel="noopener">abrir no GitHub ↗</a>
+      </div>
+      ${repoInfo.description ? `<p class="repo-desc">${repoInfo.description}</p>` : ""}
+      <div class="repo-stats">
+        <span>branch padrão <b>${repoInfo.default_branch}</b></span>
+        <span>linguagem <b>${repoInfo.language || "—"}</b></span>
+        <span>issues abertas <b>${repoInfo.open_issues_count}</b></span>
+        <span>★ <b>${repoInfo.stargazers_count}</b></span>
+        <span>última atividade <b>${atualizado}</b></span>
+      </div>
+      ${commitHtml}
+    </div>`;
+}
+
 RENDER.projeto = () => {
   const p = Store.get("projetos").find((x) => x.id === projetoAtualId);
   if (!p) return irPara("projetos");
@@ -484,6 +568,11 @@ RENDER.projeto = () => {
       </div>
     </div>
 
+    <div class="panel" id="pd-repo-panel">
+      <div class="panel-title"><h3>Repositório</h3></div>
+      <div id="pd-repo-conteudo"><p class="empty">${p.repo ? "Carregando informações do repositório…" : 'Nenhum repositório vinculado — edite o projeto e informe a URL do GitHub.'}</p></div>
+    </div>
+
     <div class="panel">
       <div class="panel-title"><h3>Lançamentos do projeto</h3></div>
       ${
@@ -503,6 +592,8 @@ RENDER.projeto = () => {
           : `<p class="empty">Nenhum lançamento vinculado — no Financeiro, escolha "${p.nome}" no campo projeto ao lançar.</p>`
       }
     </div>`;
+
+  if (p.repo) carregarRepo(p);
 };
 
 $("#pd-conteudo").addEventListener("click", (e) => {
@@ -728,17 +819,7 @@ RENDER.atividades = () => {
 
 /* ============ CONFIGURAÇÕES ============ */
 
-$("#btn-reset").addEventListener("click", () => {
-  if (confirm("Isso apaga TODOS os dados locais do painel e recarrega os dados iniciais. Continuar?")) Store.reset();
-});
-
-$("#btn-export").addEventListener("click", () => {
-  const blob = new Blob([localStorage.getItem("dmg_saas_v1")], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `dmg-saas-backup-${Store.isoDay(new Date())}.json`;
-  a.click();
-});
+$("#btn-logout").addEventListener("click", () => window.dmgLogout());
 
 /* ============ SIDEBAR MOBILE / HERO / EQUIPE ============ */
 
@@ -778,7 +859,25 @@ $("#equipe-cards").addEventListener("click", (e) => {
   card.querySelectorAll(".member-info").forEach((p) => p.classList.add("visible"));
 });
 
-/* ============ INIT ============ */
+/* ============ INIT (Firestore + Auth) ============ */
 
-const inicial = location.hash.replace("#", "");
-irPara(TITULOS[inicial] ? inicial : "dashboard");
+function viewAtual() {
+  const v = location.hash.replace("#", "");
+  return TITULOS[v] ? v : "dashboard";
+}
+
+// Re-renderiza a view atual sempre que qualquer coleção do Firestore mudar
+// (inclusive mudanças feitas por outra pessoa do time, em tempo real).
+Store.onChange(() => {
+  const v = viewAtual();
+  if (RENDER[v]) RENDER[v]();
+});
+
+function iniciarDashboard() {
+  Store.iniciar(() => {
+    irPara(viewAtual());
+  });
+}
+
+// auth.js dispara este evento assim que o login é confirmado.
+window.addEventListener("dmg:autenticado", iniciarDashboard, { once: true });

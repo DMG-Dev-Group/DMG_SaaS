@@ -1,0 +1,16 @@
+rules_version = '2';
+
+// Regras básicas: só usuários autenticados (time, via Firebase Auth)
+// podem ler ou escrever. Como o login é feito manualmente por membro
+// (sem cadastro público), isso já restringe o acesso ao time.
+//
+// Cole este conteúdo em: Console do Firebase → Firestore Database →
+// Regras, substituindo o que já estiver lá.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{collection}/{docId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
