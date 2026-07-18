@@ -43,15 +43,33 @@ async function triggerItemUpdate(itemId) {
   });
 }
 
-/** Busca transações do item a partir de uma data (YYYY-MM-DD), com paginação. */
-async function fetchTransactions(itemId, fromDateISO) {
+/**
+ * Lista as accounts (contas) dentro de um item (conexão). Um item pode ter
+ * mais de uma account — o PicPay normalmente tem uma do tipo BANK/PAYMENT.
+ * É o accountId daqui que a API de transações espera, NUNCA o itemId.
+ */
+async function fetchAccounts(itemId) {
+  const apiKey = await getApiKey();
+
+  const url = new URL(`${PLUGGY_BASE_URL}/accounts`);
+  url.searchParams.set("itemId", itemId);
+
+  const resp = await fetch(url, { headers: { "X-API-KEY": apiKey } });
+  if (!resp.ok) throw new Error(`Falha ao buscar accounts do item (${resp.status}).`);
+
+  const data = await resp.json();
+  return data.results || [];
+}
+
+/** Busca transações de uma account específica a partir de uma data (YYYY-MM-DD), com paginação. */
+async function fetchTransactions(accountId, fromDateISO) {
   const apiKey = await getApiKey();
   let page = 1;
   const all = [];
 
   while (true) {
     const url = new URL(`${PLUGGY_BASE_URL}/transactions`);
-    url.searchParams.set("accountId", itemId);
+    url.searchParams.set("accountId", accountId);
     if (fromDateISO) url.searchParams.set("from", fromDateISO);
     url.searchParams.set("pageSize", "500");
     url.searchParams.set("page", String(page));
@@ -69,4 +87,4 @@ async function fetchTransactions(itemId, fromDateISO) {
   return all;
 }
 
-module.exports = { fetchTransactions, triggerItemUpdate };
+module.exports = { fetchTransactions, fetchAccounts, triggerItemUpdate };
