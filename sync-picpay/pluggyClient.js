@@ -61,27 +61,33 @@ async function fetchAccounts(itemId) {
   return data.results || [];
 }
 
-/** Busca transações de uma account específica a partir de uma data (YYYY-MM-DD), com paginação. */
+/**
+ * Busca transações de uma account específica a partir de uma data
+ * (YYYY-MM-DD), com paginação por cursor.
+ *
+ * IMPORTANTE: o endpoint antigo (GET /transactions, paginado por número de
+ * página) foi descontinuado pela Pluggy e retorna 410 Gone. O substituto é
+ * GET /v2/transactions, que devolve { results, next }, onde `next` é a URL
+ * completa da próxima página (ou null quando acabou).
+ */
 async function fetchTransactions(accountId, fromDateISO) {
   const apiKey = await getApiKey();
-  let page = 1;
   const all = [];
 
-  while (true) {
-    const url = new URL(`${PLUGGY_BASE_URL}/transactions`);
-    url.searchParams.set("accountId", accountId);
-    if (fromDateISO) url.searchParams.set("from", fromDateISO);
-    url.searchParams.set("pageSize", "500");
-    url.searchParams.set("page", String(page));
+  const primeiraUrl = new URL(`${PLUGGY_BASE_URL}/v2/transactions`);
+  primeiraUrl.searchParams.set("accountId", accountId);
+  if (fromDateISO) primeiraUrl.searchParams.set("from", fromDateISO);
+  primeiraUrl.searchParams.set("pageSize", "500");
 
-    const resp = await fetch(url, { headers: { "X-API-KEY": apiKey } });
+  let nextUrl = primeiraUrl.toString();
+
+  while (nextUrl) {
+    const resp = await fetch(nextUrl, { headers: { "X-API-KEY": apiKey } });
     if (!resp.ok) throw new Error(`Falha ao buscar transações (${resp.status}).`);
 
     const data = await resp.json();
     all.push(...(data.results || []));
-
-    if (!data.results || data.results.length < 500) break;
-    page += 1;
+    nextUrl = data.next || null;
   }
 
   return all;
