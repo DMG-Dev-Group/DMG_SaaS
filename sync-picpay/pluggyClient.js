@@ -76,7 +76,7 @@ async function fetchTransactions(accountId, fromDateISO) {
 
   const primeiraUrl = new URL(`${PLUGGY_BASE_URL}/v2/transactions`);
   primeiraUrl.searchParams.set("accountId", accountId);
-  if (fromDateISO) primeiraUrl.searchParams.set("from", fromDateISO);
+  if (fromDateISO) primeiraUrl.searchParams.set("dateFrom", fromDateISO);
   primeiraUrl.searchParams.set("pageSize", "500");
 
   let nextUrl = primeiraUrl.toString();
