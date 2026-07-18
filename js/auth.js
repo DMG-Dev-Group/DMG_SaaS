@@ -23,6 +23,35 @@ const $ = (s, c = document) => c.querySelector(s);
 
 let jaIniciou = false;
 
+/* ── Painel por usuário ──
+   Mesmas funcionalidades e mesmo js/ para todos; o que muda é a página:
+   dashboard.html (visual novo) ou dashboard-classic.html (visual clássico,
+   idêntico ao painel original). Quando o login resolve, se o usuário está
+   na página "errada" pro seu perfil, redireciona preservando a view (#hash). */
+const PAINEL_POR_UID = {
+  "5McOaiX7HfPzVWhhs9I9YSFa6mj1": "dashboard-classic.html", // Miguel — visual clássico
+};
+
+/* Devolve true se disparou um redirect — nesse caso a página atual vai ser
+   substituída e não deve montar o dashboard (evita abrir listeners do
+   Firestore que morreriam no meio da troca de página). */
+function levarAoPainelCerto(user) {
+  const atual = location.pathname.split("/").pop() || "index.html";
+  if (atual !== "dashboard.html" && atual !== "dashboard-classic.html") return false;
+  const alvo = (user && PAINEL_POR_UID[user.uid]) || "dashboard.html";
+  // Persiste pro snippet do <head> das duas páginas mandar o navegador
+  // direto pro painel certo antes do primeiro paint (sem "flash")
+  try {
+    if (alvo === "dashboard-classic.html") localStorage.setItem("dmg-painel", "classic");
+    else localStorage.removeItem("dmg-painel");
+  } catch (e) { /* storage indisponível — o redirect abaixo resolve mesmo assim */ }
+  if (user && atual !== alvo) {
+    location.replace(alvo + location.hash);
+    return true;
+  }
+  return false;
+}
+
 function montarTelaLogin() {
   const overlay = document.createElement("div");
   overlay.id = "login-overlay";
@@ -93,7 +122,7 @@ function atualizarAvatar(user) {
 }
 
 onAuthStateChanged(auth, (user) => {
-  const dash = document.querySelector(".sidebar")?.closest("body");
+  if (levarAoPainelCerto(user)) return; // a página certa carrega do zero
   if (user) {
     removerTelaLogin();
     atualizarAvatar(user);

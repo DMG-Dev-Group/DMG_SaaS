@@ -49,20 +49,41 @@ $("#today").textContent = "// " + new Date().toLocaleDateString("pt-BR", { weekd
 
 /* ============ NAVEGAÇÃO ENTRE VIEWS ============ */
 
-const TITULOS = {
-  dashboard: ["// visão geral", "Dashboard"],
-  projetos: ["// operação", "Projetos"],
-  projeto: ["// projetos", "Detalhes"],
-  clientes: ["// operação", "Clientes"],
-  equipe: ["// operação", "Equipe"],
-  financeiro: ["// operação", "Financeiro"],
-  calendario: ["// operação", "Calendário"],
-  atividades: ["// registro", "Atividades"],
-  infraestrutura: ["// sistemas", "Infraestrutura"],
-  seguranca: ["// sistemas", "Segurança"],
-  analytics: ["// sistemas", "Analytics"],
-  config: ["// sistemas", "Configurações"],
-};
+/* O mesmo app.js atende os dois painéis: dashboard.html (visual novo) e
+   dashboard-classic.html (visual clássico, idêntico ao original). A view
+   de dashboard tem markup diferente em cada um — detectamos pela presença
+   do #m-receita, que só existe no clássico. */
+const LAYOUT_CLASSICO = !!document.getElementById("m-receita");
+
+const TITULOS = LAYOUT_CLASSICO
+  ? {
+      dashboard: ["// visão geral", "Dashboard"],
+      projetos: ["// operação", "Projetos"],
+      projeto: ["// projetos", "Detalhes"],
+      clientes: ["// operação", "Clientes"],
+      equipe: ["// operação", "Equipe"],
+      financeiro: ["// operação", "Financeiro"],
+      calendario: ["// operação", "Calendário"],
+      atividades: ["// registro", "Atividades"],
+      infraestrutura: ["// sistemas", "Infraestrutura"],
+      seguranca: ["// sistemas", "Segurança"],
+      analytics: ["// sistemas", "Analytics"],
+      config: ["// sistemas", "Configurações"],
+    }
+  : {
+      dashboard: ["// visão geral", "Visão Geral"],
+      projetos: ["// principal", "Projetos"],
+      projeto: ["// projetos", "Detalhes"],
+      clientes: ["// operação", "Clientes"],
+      equipe: ["// principal", "Membros"],
+      financeiro: ["// principal", "Financeiro"],
+      calendario: ["// operação", "Calendário"],
+      atividades: ["// registro", "Atividades"],
+      infraestrutura: ["// sistemas", "Infraestrutura"],
+      seguranca: ["// sistemas", "Segurança"],
+      analytics: ["// sistemas", "Analytics"],
+      config: ["// sistemas", "Configurações"],
+    };
 
 const RENDER = {};
 
@@ -123,7 +144,78 @@ const opts = (obj, sel) =>
 
 /* ============ DASHBOARD ============ */
 
-RENDER.dashboard = () => {
+/* Visual novo (dashboard.html): KPIs saldo/entradas/saídas/projetos */
+function renderDashboardNovo() {
+  const hoje = new Date();
+  const kAtual = mesKey(Store.isoDay(hoje));
+  const ant = new Date(hoje);
+  ant.setMonth(ant.getMonth() - 1);
+  const kAnt = mesKey(Store.isoDay(ant));
+
+  const receitas = Store.get("receitas");
+  const somaMes = (k, tipo = "entrada") =>
+    receitas.filter((r) => r.tipo === tipo && mesKey(r.data) === k).reduce((s, r) => s + Number(r.valor), 0);
+  const entradas = somaMes(kAtual);
+  const saidas = somaMes(kAtual, "saida");
+  const entradasAnt = somaMes(kAnt);
+  const deltaPct = entradasAnt ? (((entradas - entradasAnt) / entradasAnt) * 100).toFixed(1).replace(".", ",") : null;
+  const subiu = entradas >= entradasAnt;
+
+  /* ── KPIs ── */
+  $("#kpi-saldo").textContent = BRL(entradas - saidas);
+  $("#kpi-entradas").textContent = BRL(entradas);
+  $("#kpi-saidas").textContent = BRL(saidas);
+  $("#kpi-entradas-meta").textContent =
+    deltaPct === null ? "sem base de comparação" : `${subiu ? "▲ +" : "▼ −"}${deltaPct}% vs mês anterior`;
+
+  const projetos = Store.get("projetos");
+  const ativos = projetos.filter((p) => p.status !== "done");
+  const devs = ativos.filter((p) => p.status === "dev");
+  $("#badge-projetos").textContent = ativos.length;
+  $("#kpi-projetos").textContent = String(ativos.length).padStart(2, "0");
+  $("#kpi-projetos-meta").textContent = `${devs.length} em dev · ${projetos.length - ativos.length} concluídos`;
+
+  desenharGrafico();
+
+  /* ── Próximos eventos ── */
+  const fmtDia = (iso) =>
+    new Date(iso + "T12:00").toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" });
+  const hojeISO = Store.isoDay(hoje);
+  const futuros = Store.get("eventos")
+    .filter((ev) => ev.data >= hojeISO)
+    .sort((a, b) => (a.data + (a.hora || "")).localeCompare(b.data + (b.hora || "")));
+
+  $("#dash-eventos").innerHTML = futuros.length
+    ? futuros
+        .slice(0, 4)
+        .map(
+          (ev) => `<div class="act">
+            <div class="a-ico">▸</div>
+            <div class="a-body"><b>${ev.titulo}</b><span class="a-time">${fmtDia(ev.data)}${ev.hora ? " · " + ev.hora : ""}</span></div>
+          </div>`
+        )
+        .join("")
+    : '<p class="empty">Nenhum evento futuro — a agenda está livre.</p>';
+
+  /* ── Tabela resumida + atividades ── */
+  $("#dash-projetos").innerHTML = projetos.length
+    ? projetos
+        .slice()
+        .sort((a, b) => (a.status === "done") - (b.status === "done"))
+        .slice(0, 5)
+        .map((p) => linhaProjeto(p, false))
+        .join("")
+    : '<tr><td colspan="4" class="empty">Nenhum projeto ainda — crie o primeiro em "+ Projeto".</td></tr>';
+
+  const atividades = Store.get("atividades");
+  $("#dash-atividades").innerHTML = atividades.length
+    ? atividades.slice(0, 5).map(itemAtividade).join("")
+    : '<p class="empty">Nenhuma atividade registrada.</p>';
+}
+
+/* Visual clássico (dashboard-classic.html): hero + métricas originais,
+   código idêntico ao painel antigo */
+function renderDashboardClassico() {
   const hoje = new Date();
   const kAtual = mesKey(Store.isoDay(hoje));
   const ant = new Date(hoje);
@@ -226,7 +318,9 @@ RENDER.dashboard = () => {
     .join("");
 
   $("#dash-atividades").innerHTML = Store.get("atividades").slice(0, 4).map(itemAtividade).join("");
-};
+}
+
+RENDER.dashboard = LAYOUT_CLASSICO ? renderDashboardClassico : renderDashboardNovo;
 
 /* Gráfico de linha genérico (SVG) — curva suavizada + tooltip no hover */
 function desenharLinha(svg, labels, serie, fmtValor) {
@@ -261,7 +355,7 @@ function desenharLinha(svg, labels, serie, fmtValor) {
   const passo = Math.ceil(labels.length / 10);
   labels.forEach((l, i) => {
     if (i % passo) return;
-    grid += `<text x="${x(i)}" y="${H - 8}" fill="rgba(255,255,255,.42)" font-size="11" font-family="Geist Mono, monospace" text-anchor="middle">${l}</text>`;
+    grid += `<text x="${x(i)}" y="${H - 8}" fill="rgba(255,255,255,.42)" font-size="11" font-family="Geist Mono, ui-monospace, monospace" text-anchor="middle">${l}</text>`;
   });
 
   svg.innerHTML = `
@@ -651,10 +745,10 @@ RENDER.projeto = () => {
               ${lanc
                 .map(
                   (l) => `<tr>
-                    <td><span class="p-name">${l.desc}</span></td>
+                    <td><span class="p-name">${l.desc}${l.origem === "picpay" ? '<span class="origem-badge">PicPay</span>' : ""}</span></td>
                     <td>${new Date(l.data + "T12:00").toLocaleDateString("pt-BR")}</td>
                     <td><span class="status ${l.tipo === "entrada" ? "prod" : "dev"}">${l.tipo}</span></td>
-                    <td style="font-family:var(--mono);color:${l.tipo === "entrada" ? "#2ecc71" : "var(--red)"}">${l.tipo === "entrada" ? "+" : "−"} ${BRL(Number(l.valor))}</td>
+                    <td class="val ${l.tipo === "entrada" ? "val-in" : "val-out"}">${l.tipo === "entrada" ? "+" : "−"} ${BRL(Number(l.valor))}</td>
                   </tr>`
                 )
                 .join("")}
@@ -826,29 +920,31 @@ RENDER.financeiro = () => {
   $("#fin-saidas").textContent = BRL(saidas);
   $("#fin-saldo").textContent = BRL(entradas - saidas);
 
-  $("#tbl-fin tbody").innerHTML = lanc
-    .slice()
-    .sort((a, b) => b.data.localeCompare(a.data))
-    .slice(0, 25)
-    .map(
-      (l) => {
-        // Prefere o nome atual do projeto: se ele foi renomeado depois do
-        // lançamento, o `l.projeto` gravado na hora fica desatualizado.
-        const proj = l.projetoId ? Store.get("projetos").find((p) => p.id === l.projetoId) : null;
-        return `<tr>
-        <td><span class="p-name">${esc(l.desc)}</span>${
-          proj
-            ? `<span class="p-type td-click" data-abrir="${proj.id}">${esc(proj.nome)} →</span>`
-            : `<span class="p-type">${esc(l.projeto || "—")}</span>`
-        }</td>
+  $("#tbl-fin tbody").innerHTML = lanc.length
+    ? lanc
+        .slice()
+        .sort((a, b) => b.data.localeCompare(a.data))
+        .slice(0, 25)
+        .map(
+          (l) => {
+            // Prefere o nome atual do projeto: se ele foi renomeado depois do
+            // lançamento, o `l.projeto` gravado na hora fica desatualizado.
+            const proj = l.projetoId ? Store.get("projetos").find((p) => p.id === l.projetoId) : null;
+            return `<tr>
+        <td><span class="p-name">${esc(l.desc)}${l.origem === "picpay" ? '<span class="origem-badge">PicPay</span>' : ""}</span>${
+              proj
+                ? `<span class="p-type td-click" data-abrir="${proj.id}">${esc(proj.nome)} →</span>`
+                : `<span class="p-type">${esc(l.projeto || "—")}</span>`
+            }</td>
         <td>${new Date(l.data + "T12:00").toLocaleDateString("pt-BR")}</td>
         <td><span class="status ${l.tipo === "entrada" ? "prod" : "dev"}">${l.tipo}</span></td>
-        <td style="color:${l.tipo === "entrada" ? "#2ecc71" : "var(--red)"};font-family:var(--mono)">${l.tipo === "entrada" ? "+" : "−"} ${BRL(Number(l.valor))}</td>
+        <td class="val ${l.tipo === "entrada" ? "val-in" : "val-out"}">${l.tipo === "entrada" ? "+" : "−"} ${BRL(Number(l.valor))}</td>
         <td class="td-acoes"><button class="icon-mini" data-excluir-fin="${l.id}" title="Excluir">✕</button></td>
       </tr>`;
-      }
-    )
-    .join("");
+          }
+        )
+        .join("")
+    : '<tr><td colspan="5" class="empty">Nenhum lançamento ainda — registre a primeira entrada ou saída.</td></tr>';
 };
 
 $("#add-fin").addEventListener("click", () => {

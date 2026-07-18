@@ -8,7 +8,7 @@
   <link rel="icon" type="image/svg+xml" href="images/logo.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500..900&family=JetBrains+Mono:wght@400;600&family=Science+Gothic:wght@400..800&family=Archivo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./css/style.css">
 </head>
 <body>
@@ -16,29 +16,27 @@
   <!-- NAVBAR -->
   <nav class="nav">
     <a href="#" class="nav-logo">
-      <img src="images/logo.svg" alt="DMG" width="38" height="38" style="display:block">
+      <img src="images/logo.svg" alt="DMG" width="36" height="36" style="display:block">
       <span class="word">Damage&nbsp;Group</span>
     </a>
     <ul class="nav-links">
       <li><a href="#marca">A Marca</a></li>
       <li><a href="#membros">Membros</a></li>
       <li><a href="#servicos">Serviços</a></li>
-      <li><a href="dashboard.html" class="btn solid" style="padding:10px 22px">Acessar Painel</a></li>
+      <li><a href="dashboard.html" class="btn solid">Acessar Painel</a></li>
     </ul>
   </nav>
 
   <!-- HERO -->
   <header class="hero">
-    <div class="hero-glow"></div>
-    <div class="hero-glow two"></div>
     <div class="hero-letters">DMG</div>
     <div class="hero-content">
       <p class="section-label">// damage group</p>
       <h1>Força.<br>Inovação.<br>Liderança <span class="red">tecnológica</span><span class="cursor">_</span></h1>
       <p>A DMG constrói produtos digitais com impacto, precisão e domínio — do design ao deploy. Uma marca feita para qualquer ambiente onde atua.</p>
       <div class="hero-cta">
-        <a href="#membros" class="btn solid">Conheça a equipe</a>
-        <a href="dashboard.html" class="btn">Ver o painel</a>
+        <a href="dashboard.html" class="btn solid">Acessar o painel</a>
+        <a href="#membros" class="btn">Conheça a equipe</a>
       </div>
       <div class="hero-meta">
         <div class="item">
@@ -60,8 +58,7 @@
   <!-- FAIXA -->
   <div class="strip">
     <div class="strip-track">
-      <span>Damage Group <b>//</b></span><span>Força <b>//</b></span><span>Inovação <b>//</b></span><span>Liderança tecnológica <b>//</b></span><span>Impacto <b>//</b></span><span>Precisão <b>//</b></span><span>Domínio <b>//</b></span>
-      <span>Damage Group <b>//</b></span><span>Força <b>//</b></span><span>Inovação <b>//</b></span><span>Liderança tecnológica <b>//</b></span><span>Impacto <b>//</b></span><span>Precisão <b>//</b></span><span>Domínio <b>//</b></span>
+      <span>Damage Group <b>//</b></span><span>Força <b>//</b></span><span>Inovação <b>//</b></span><span>Liderança tecnológica <b>//</b></span><span>Impacto <b>//</b></span><span>Precisão <b>//</b></span><span>Domínio</span>
     </div>
   </div>
 
@@ -98,11 +95,10 @@
 
     <div class="card-display">
 
-      <!-- Card D — esquerdo: info à direita (dentro do card, sobreposta) -->
+      <!-- Card D — esquerdo: info à direita (fora do card) -->
       <div class="card" id="d">
         <div class="letter">D</div>
-        <img src="images/dan.png" class="photo">
-        <!-- Painel: tudo à direita do card -->
+        <img src="images/dan.png" class="photo" alt="Daniel">
         <div class="member-info info-right" id="info-d">
           <span class="info-label">// membro</span>
           <h3 class="info-name">Daniel</h3>
@@ -122,14 +118,12 @@
       <!-- Card M — central: nome/idade à esquerda, stack à direita -->
       <div class="card" id="m">
         <div class="letter">M</div>
-        <img src="images/migo.png" class="photo">
-        <!-- Painel esquerdo: nome + idade -->
+        <img src="images/migo.png" class="photo" alt="Miguel">
         <div class="member-info info-split-left" id="info-m-left">
           <span class="info-label">// membro</span>
           <h3 class="info-name">Miguel</h3>
           <span class="info-age">21 anos</span>
         </div>
-        <!-- Painel direito: stack -->
         <div class="member-info info-split-right" id="info-m-right">
           <span class="info-stack-label">Stack</span>
           <div class="info-pills">
@@ -145,8 +139,7 @@
       <!-- Card G — direito: info à esquerda -->
       <div class="card" id="g">
         <div class="letter">G</div>
-        <img src="images/guigui.png" class="photo" id="gui">
-        <!-- Painel: tudo à esquerda do card -->
+        <img src="images/guigui.png" class="photo" id="gui" alt="Guilherme">
         <div class="member-info info-left" id="info-g">
           <span class="info-label">// membro</span>
           <h3 class="info-name">Guilherme</h3>
@@ -219,7 +212,6 @@
   <!-- CTA DASHBOARD -->
   <section>
     <div class="cta-banner">
-      <div class="glow"></div>
       <div>
         <p class="section-label">// painel dmg</p>
         <h2>O centro de operações da DMG</h2>
